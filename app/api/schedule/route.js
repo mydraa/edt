@@ -88,8 +88,16 @@ export async function GET(request) {
       }
     }
 
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayMs = today.getTime();
+
     const schedule = parseICS(fileContent)
-      .filter((e) => e.start && e.title)
+      .filter((e) => {
+        if (!e.start || !e.title) return false;
+        const endTime = e.end ? new Date(e.end).getTime() : new Date(e.start).getTime();
+        return endTime >= todayMs;
+      })
       .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
 
     return NextResponse.json({ schedule, isCached, lastUpdate });
