@@ -51,22 +51,48 @@ export async function GET(request) {
   const { searchParams } = new URL(request.url);
   const calendarUrl = searchParams.get('url');
 
+  const dataDir = path.join(process.cwd(), 'data');
+  if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
+  const cachePath = path.join(dataDir, 'cached_schedule.ics');
+
   try {
     let fileContent = '';
+    let isCached = false;
+    let lastUpdate = null;
+
     if (calendarUrl) {
-      const resp = await fetch(calendarUrl);
-      if (!resp.ok) throw new Error('Failed to fetch from FlopEDT');
-      fileContent = await resp.text();
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 8000); // 8 second timeout
+        const resp = await fetch(calendarUrl, { signal: controller.signal });
+        clearTimeout(timeoutId);
+        
+        if (!resp.ok) throw new Error('Failed to fetch from FlopEDT');
+        fileContent = await resp.text();
+        fs.writeFileSync(cachePath, fileContent, 'utf-8');
+      } catch (err) {
+        console.warn('Fetch failed, falling back to cache:', err.message);
+        if (fs.existsSync(cachePath)) {
+          fileContent = fs.readFileSync(cachePath, 'utf-8');
+          isCached = true;
+          const stats = fs.statSync(cachePath);
+          lastUpdate = stats.mtime;
+        } else {
+          throw new Error('No cache available and server unreachable.');
+        }
+      }
     } else {
-      const mockFilePath = path.join(process.cwd(), 'data', 'mock.ics');
-      fileContent = fs.readFileSync(mockFilePath, 'utf-8');
+      const mockFilePath = path.join(dataDir, 'mock.ics');
+      if (fs.existsSync(mockFilePath)) {
+          fileContent = fs.readFileSync(mockFilePath, 'utf-8');
+      }
     }
 
     const schedule = parseICS(fileContent)
       .filter((e) => e.start && e.title)
       .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
 
-    return NextResponse.json({ schedule });
+    return NextResponse.json({ schedule, isCached, lastUpdate });
   } catch (error) {
     console.error('Error fetching/parsing schedule:', error);
     return NextResponse.json({ error: 'Failed to fetch schedule data' }, { status: 500 });

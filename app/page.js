@@ -8,6 +8,7 @@ export default function Home() {
   const [schedule, setSchedule] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [cacheInfo, setCacheInfo] = useState(null);
 
   useEffect(() => {
     async function fetchSchedule() {
@@ -18,6 +19,9 @@ export default function Home() {
         }
         const data = await response.json();
         setSchedule(data.schedule);
+        if (data.isCached) {
+            setCacheInfo(new Date(data.lastUpdate).toLocaleString('fr-FR'));
+        }
       } catch (err) {
         setError(err.message);
       } finally {
@@ -38,6 +42,9 @@ export default function Home() {
             Your premium timetable interface for IUT Blagnac.
             Currently fetching live schedule data for Group 1A.
           </p>
+          <a href="/FlopEDT.apk" download className={styles.downloadButton} style={{ marginTop: '1rem', display: 'inline-block', background: '#0070f3', color: 'white', padding: '10px 20px', borderRadius: '8px', textDecoration: 'none', fontWeight: 'bold' }}>
+            Télécharger l'App Android
+          </a>
         </div>
 
         <div className={styles.content}>
@@ -46,7 +53,14 @@ export default function Home() {
           ) : error ? (
             <div className={styles.error}>{error}</div>
           ) : (
-            <Calendar schedule={schedule} />
+            <>
+              {cacheInfo && (
+                <div style={{ backgroundColor: '#fff3cd', color: '#856404', padding: '10px', borderRadius: '8px', marginBottom: '16px', textAlign: 'center', fontSize: '0.9rem' }}>
+                  ⚠️ Serveur FlopEDT injoignable. Affichage de la dernière version en cache (mise à jour : {cacheInfo}).
+                </div>
+              )}
+              <Calendar schedule={schedule} />
+            </>
           )}
         </div>
       </main>
